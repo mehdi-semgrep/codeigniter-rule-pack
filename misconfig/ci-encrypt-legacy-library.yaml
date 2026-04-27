@@ -1,0 +1,61 @@
+rules:
+  - id: ci-encrypt-legacy-library
+    severity: ERROR
+    languages: [php]
+    min-version: 1.71.0
+    message: >-
+      Use of CodeIgniter 2's deprecated `Encrypt` library
+      (`$this->encrypt->...`). The CI2 Encrypt class uses XOR + base64
+      by default — cryptographically broken and replaced in CI3+ by the
+      `Encryption` library (note the trailing "ion") which uses AES +
+      HMAC. Migrate to `$this->encryption->encrypt()` /
+      `$this->encryption->decrypt()`, or use a modern PHP crypto API
+      (`sodium_crypto_secretbox`, `openssl_encrypt` with AES-GCM). The
+      `encode_from_legacy()` migration helper is intentionally not
+      flagged — it exists specifically to read CI2 ciphertext during a
+      one-time migration to the new library.
+    metadata:
+      category: security
+      cwe:
+        - "CWE-327: Use of a Broken or Risky Cryptographic Algorithm"
+      owasp:
+        - "A02:2021 - Cryptographic Failures"
+      technology:
+        - codeigniter
+        - php
+      confidence: HIGH
+      likelihood: MEDIUM
+      impact: HIGH
+      subcategory:
+        - vuln
+      license: Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license
+    paths:
+      exclude:
+        - "**/system/**"
+        - "**/vendor/**"
+        - "**/user_guide/**"
+        - "**/user_guide_src/**"
+    patterns:
+      - pattern-either:
+          - pattern: $OBJ->encrypt->encode(...)
+          - pattern: $OBJ->encrypt->decode(...)
+          - pattern: $OBJ->encrypt->sha1(...)
+          - pattern: $OBJ->encrypt->set_cipher(...)
+          - pattern: $OBJ->encrypt->set_mode(...)
+          - pattern: $OBJ->encrypt->set_key(...)
+      # Migration helper, not new dangerous use
+      - pattern-not: $OBJ->encrypt->encode_from_legacy(...)
+      # Framework class definitions themselves — `CI_` prefix is
+      # the documented CI3 style-guide reservation for framework classes
+      - pattern-not-inside:
+          patterns:
+            - pattern: class $C { ... }
+            - metavariable-regex:
+                metavariable: $C
+                regex: ^CI_
+      - pattern-not-inside:
+          patterns:
+            - pattern: class $C extends $BASE { ... }
+            - metavariable-regex:
+                metavariable: $C
+                regex: ^CI_

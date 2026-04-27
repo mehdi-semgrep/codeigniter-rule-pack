@@ -1,0 +1,29 @@
+rules:
+  - id: ci-error-leakage
+    severity: WARNING
+    languages: [php]
+    min-version: 1.71.0
+    message: >-
+      Development-mode debug output is enabled. db_debug=TRUE prints SQL
+      errors (including query structure and schema) to the client;
+      ENVIRONMENT='development' enables verbose error pages. Disable both
+      in production builds.
+    metadata:
+      category: security
+      cwe:
+        - "CWE-209: Generation of Error Message Containing Sensitive Information"
+      owasp:
+        - "A05:2021 - Security Misconfiguration"
+      technology:
+        - codeigniter
+        - php
+      confidence: HIGH
+      likelihood: HIGH
+      impact: MEDIUM
+      subcategory:
+        - vuln
+      license: Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license
+    pattern-either:
+      - pattern: $db[$PROFILE]['db_debug'] = true
+      - pattern: define('ENVIRONMENT', 'development')
+      - pattern: define("ENVIRONMENT", "development")

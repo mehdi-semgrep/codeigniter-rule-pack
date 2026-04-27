@@ -1,0 +1,33 @@
+rules:
+  - id: ci-cookie-no-httponly
+    severity: WARNING
+    languages: [php]
+    min-version: 1.71.0
+    message: >-
+      Session/CSRF cookies are set without the HttpOnly flag, exposing
+      them to JavaScript and XSS-based session theft. Set
+      cookie_httponly=TRUE (CI3) or $cookieHTTPOnly=true (CI4).
+    metadata:
+      category: security
+      cwe:
+        - "CWE-1004: Sensitive Cookie Without 'HttpOnly' Flag"
+      owasp:
+        - "A05:2021 - Security Misconfiguration"
+      technology:
+        - codeigniter
+        - php
+      confidence: HIGH
+      likelihood: MEDIUM
+      impact: MEDIUM
+      subcategory:
+        - vuln
+      license: Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license
+    pattern-either:
+      # CI2/CI3 config array
+      - pattern: $config['cookie_httponly'] = false
+      # CI4 Config\App or Config\Cookie class property
+      - patterns:
+          - pattern-inside: |
+              namespace Config;
+              ...
+          - pattern: $cookieHTTPOnly = false

@@ -1,0 +1,34 @@
+rules:
+  - id: ci-auto-routing-enabled
+    severity: WARNING
+    languages: [php]
+    min-version: 1.71.0
+    message: >-
+      CI4 auto-routing is enabled via `setAutoRoute(true)`. Auto-routing
+      exposes every public method of every controller as a routable URL,
+      including admin, debug, and internal methods that the developer
+      may not have intended to expose. The CodeIgniter 4 user guide
+      explicitly recommends against using auto-routing in production
+      and suggests defined routes instead (e.g. `$routes->get('users',
+      'UserController::index')`). In CI4 ≥ 4.2.0, configuring
+      `AutoRouterImproved` provides partial mitigation by requiring
+      explicit method-name prefixes (getIndex, postCreate); the legacy
+      auto-router has no such guard. Verify the deployment process
+      disables auto-routing for production.
+    metadata:
+      category: security
+      cwe:
+        - "CWE-1188: Insecure Default Initialization of Resource"
+      owasp:
+        - "A05:2021 - Security Misconfiguration"
+      technology:
+        - codeigniter
+        - php
+      confidence: MEDIUM
+      likelihood: MEDIUM
+      impact: HIGH
+      subcategory:
+        - vuln
+      license: Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license
+    patterns:
+      - pattern: $ANY->setAutoRoute(true)

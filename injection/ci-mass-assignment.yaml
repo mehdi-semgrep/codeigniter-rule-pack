@@ -1,0 +1,112 @@
+rules:
+  - id: ci-mass-assignment
+    severity: ERROR
+    languages: [php]
+    min-version: 1.71.0
+    message: >-
+      User-controlled input ($_POST / $this->input->post() /
+      $this->request->getPost() / $this->request->getJSON(true))
+      flows into the data array of a CodeIgniter Active Record
+      insert/update/replace call. CI uses the array's KEYS as
+      column names, so an attacker can write any column they can
+      guess (is_admin=1, role=admin, email_verified=1). Pass an
+      explicit filtered array: use $this->input->post(['allowed',
+      'keys']) (CI3) or $this->request->getPost(['allowed', 'keys'])
+      (CI4), or build the array literal explicitly with named keys.
+    mode: taint
+    options:
+      taint_assume_safe_booleans: true
+      taint_assume_safe_numbers: true
+    metadata:
+      category: security
+      cwe:
+        - "CWE-915: Improperly Controlled Modification of Dynamically-Determined Object Attributes"
+      owasp:
+        - "A04:2021 - Insecure Design"
+      technology:
+        - codeigniter
+        - php
+      confidence: HIGH
+      likelihood: HIGH
+      impact: HIGH
+      subcategory:
+        - vuln
+      functional-categories:
+        - db::sink::sql-or-nosql-query::codeigniter
+      license: Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license
+    pattern-sources:
+      - pattern: $_POST
+      - pattern: $_REQUEST
+      - pattern: $_GET
+      - patterns:
+          - pattern-either:
+              - pattern: $this->input->post()
+              - pattern: $this->input->post(NULL)
+          - pattern-inside: class $C { ... }
+      - patterns:
+          - pattern-either:
+              - pattern: $this->request->getPost()
+              - pattern: $this->request->getJSON(true)
+          - pattern-inside: class $C { ... }
+    pattern-sanitizers:
+      # CI3 array-keys filter returns only listed keys.
+      - pattern: $this->input->post([...])
+      # CI4 array-keys filter.
+      - pattern: $this->request->getPost([...])
+      # Standard mass-assignment defense idiom.
+      - pattern: array_intersect_key(...)
+      # Array literals have hardcoded keys by construction; mass
+      # assignment is not possible even when a tainted value appears
+      # as one of the array values.
+      - pattern: "array(...)"
+      - pattern: "[...]"
+    pattern-sinks:
+      # $this->db sinks gated by CI class context.
+      - patterns:
+          - pattern-either:
+              - pattern: $this->db->insert($T, $X)
+              - pattern: $this->db->update($T, $X, ...)
+              - pattern: $this->db->replace($T, $X)
+              - pattern: $this->db->table($T)->insert($X)
+              - pattern: $this->db->table($T)->update($X, ...)
+          - pattern-either:
+              - pattern-inside: class $C extends CI_Controller { ... }
+              - pattern-inside: class $C extends \App\Controllers\BaseController { ... }
+              - pattern-inside: class $C extends CI_Model { ... }
+              - pattern-inside: class $C extends \CodeIgniter\Model { ... }
+              - pattern-inside: class $C extends MY_Controller { ... }
+              - pattern-inside: class $C extends MY_Model { ... }
+              - pattern-inside: class $C extends REST_Controller { ... }
+          - focus-metavariable: $X
+      # Library-helper receiver $this->$P->db is itself a CI-API signal;
+      # no class-context guard required.
+      - patterns:
+          - pattern-either:
+              - pattern: $this->$P->db->insert($T, $X)
+              - pattern: $this->$P->db->update($T, $X, ...)
+              - pattern: $this->$P->db->replace($T, $X)
+              - pattern: $this->$P->db->table($T)->insert($X)
+              - pattern: $this->$P->db->table($T)->update($X, ...)
+          - focus-metavariable: $X
+      # $DB receiver from CI4 db_connect / service / Services.
+      - patterns:
+          - pattern-either:
+              - pattern: $DB->insert($T, $X)
+              - pattern: $DB->update($T, $X, ...)
+              - pattern: $DB->replace($T, $X)
+              - pattern: $DB->table($T)->insert($X)
+              - pattern: $DB->table($T)->update($X, ...)
+          - pattern-either:
+              - pattern-inside: |
+                  $DB = db_connect(...);
+                  ...
+              - pattern-inside: |
+                  $DB = service('db');
+                  ...
+              - pattern-inside: |
+                  $DB = \Config\Services::database();
+                  ...
+              - pattern-inside: |
+                  $DB = \Config\Services::database(...);
+                  ...
+          - focus-metavariable: $X

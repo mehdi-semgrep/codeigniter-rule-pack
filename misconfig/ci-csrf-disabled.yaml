@@ -1,0 +1,33 @@
+rules:
+  - id: ci-csrf-disabled
+    severity: WARNING
+    languages: [php]
+    min-version: 1.71.0
+    message: >-
+      CodeIgniter CSRF protection is disabled. Set csrf_protection to TRUE
+      (CI3) or $csrfProtection to 'cookie' or 'session' (CI4) to protect
+      against cross-site request forgery.
+    metadata:
+      category: security
+      cwe:
+        - "CWE-352: Cross-Site Request Forgery (CSRF)"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      technology:
+        - codeigniter
+        - php
+      confidence: HIGH
+      likelihood: HIGH
+      impact: HIGH
+      subcategory:
+        - vuln
+      license: Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license
+    pattern-either:
+      # CI2/CI3 config array
+      - pattern: $config['csrf_protection'] = false
+      # CI4 Config\Security class property
+      - patterns:
+          - pattern-inside: |
+              namespace Config;
+              ...
+          - pattern: $csrfProtection = false

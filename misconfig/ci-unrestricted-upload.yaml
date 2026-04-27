@@ -1,0 +1,50 @@
+rules:
+  - id: ci-unrestricted-upload
+    severity: WARNING
+    languages: [php]
+    min-version: 1.71.0
+    message: >-
+      CodeIgniter Upload library is configured with an unsafe
+      `allowed_types`: either '*' (wildcard), '' (empty / no
+      validation), or a whitelist that includes a server-executable
+      or web-served extension (php, phtml, phar, pht, html, svg,
+      exe, sh, htaccess). Restrict allowed_types to a minimal,
+      explicit, non-dangerous whitelist (e.g. 'jpg|png|gif|pdf')
+      and ensure the upload destination is not web-accessible if
+      user content is being stored.
+    metadata:
+      category: security
+      cwe:
+        - "CWE-434: Unrestricted Upload of File with Dangerous Type"
+      owasp:
+        - "A04:2021 - Insecure Design"
+      technology:
+        - codeigniter
+        - php
+      confidence: MEDIUM
+      likelihood: MEDIUM
+      impact: HIGH
+      subcategory:
+        - vuln
+      license: Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license
+    patterns:
+      - pattern-either:
+          # Explicit wildcard.
+          - pattern: $this->upload->initialize([..., 'allowed_types' => '*', ...])
+          - pattern: $this->upload->initialize([..., 'allowed_types' => "*", ...])
+          - pattern: $X['allowed_types'] = '*'
+          - pattern: $X['allowed_types'] = "*"
+          # Explicit empty string (no validation).
+          - pattern: $this->upload->initialize([..., 'allowed_types' => '', ...])
+          - pattern: $this->upload->initialize([..., 'allowed_types' => "", ...])
+          - pattern: $X['allowed_types'] = ''
+          - pattern: $X['allowed_types'] = ""
+          # Dangerous extension in the whitelist. Word-boundary regex
+          # avoids matching e.g. 'graphql' for 'php'.
+          - patterns:
+              - pattern-either:
+                  - pattern: $this->upload->initialize([..., 'allowed_types' => $T, ...])
+                  - pattern: $X['allowed_types'] = $T
+              - metavariable-regex:
+                  metavariable: $T
+                  regex: ^["'].*\b(php[0-9]?|phtml|phar|pht|phps|html?|svg|svgz|exe|sh|bat|cgi|pl|htaccess)\b.*["']$

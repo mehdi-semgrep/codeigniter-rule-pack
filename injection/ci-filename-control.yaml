@@ -1,0 +1,103 @@
+rules:
+  - id: ci-filename-control
+    severity: ERROR
+    languages: [php]
+    min-version: 1.71.0
+    message: >-
+      User-controlled input is used as the destination filename for a file
+      upload. An attacker can overwrite arbitrary files or plant executable
+      extensions. Use $file->getRandomName() or uniqid() to generate a
+      server-controlled filename.
+    mode: taint
+    options:
+      taint_assume_safe_booleans: true
+      taint_assume_safe_numbers: true
+    metadata:
+      category: security
+      cwe:
+        - "CWE-73: External Control of File Name or Path"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      technology:
+        - codeigniter
+        - php
+      confidence: HIGH
+      likelihood: HIGH
+      impact: HIGH
+      subcategory:
+        - vuln
+      functional-categories:
+        - web::source::http-params::codeigniter
+        - file::sink::file-name::codeigniter
+      license: Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license
+    pattern-sources:
+      - label: CI_INPUT
+        patterns:
+          - pattern-inside: function $FN(..., \CodeIgniter\HTTP\IncomingRequest $REQ, ...) {...}
+          - pattern: $REQ->$METHOD(...)
+      - label: CI_INPUT
+        patterns:
+          - pattern-inside: function $FN(..., IncomingRequest $REQ, ...) {...}
+          - pattern: $REQ->$METHOD(...)
+      - label: CI_INPUT
+        patterns:
+          - pattern: $this->input
+          - pattern-inside: class $C extends CI_Controller { ... }
+      - label: CI_INPUT
+        pattern-either:
+          - pattern: $_GET
+          - pattern: $_POST
+          - pattern: $_COOKIE
+          - pattern: $_REQUEST
+          - pattern: $_FILES
+    pattern-propagators:
+      - pattern: $A . $B
+        from: $B
+        to: $A
+      - pattern: $ARR[$K] = $TAINTED
+        from: $TAINTED
+        to: $ARR
+    pattern-sanitizers:
+      # Framework-provided random names
+      - pattern: $FILE->getRandomName()
+      # Cryptographically-random server-generated names
+      - pattern: uniqid(...)
+      - pattern: bin2hex(random_bytes(...))
+      - pattern: bin2hex(openssl_random_pseudo_bytes(...))
+      - pattern: basename(...)
+      # CI3 + CI4 framework filename sanitizers: strip path traversal
+      # and directory separators. Still not perfect (attackers can
+      # control extensions) but eliminates path-control.
+      - pattern: $this->security->sanitize_filename(...)
+      - pattern: \CodeIgniter\Security\Security::sanitizeFilename(...)
+      # NOTE: `$this->upload->clean_file_name(...)` is intentionally
+      # NOT a sanitizer. It strips some special characters but leaves
+      # the user-controlled basename and extension intact, so it does
+      # not neutralize CWE-73 (file name control) — only path
+      # traversal within the chosen filename. Retriage consensus:
+      # these are TPs, not FPs.
+    pattern-sinks:
+      # CI-specific upload APIs — $NAME is the filename argument
+      - requires: CI_INPUT
+        patterns:
+          - pattern-either:
+              - pattern: $FILE->move($DIR, $NAME)
+              - pattern: $this->upload->initialize([..., 'file_name' => $NAME, ...])
+              - pattern: $CONFIG['file_name'] = $NAME
+          - pattern-not: $FILE->move($DIR, "...")
+          - pattern-not: $this->upload->initialize([..., 'file_name' => "...", ...])
+          - pattern-not: $CONFIG['file_name'] = "..."
+          - focus-metavariable: $NAME
+      # Raw PHP destination-control sinks — full path is attacker-controlled
+      - requires: CI_INPUT
+        patterns:
+          - pattern-either:
+              - pattern: move_uploaded_file($SRC, $DEST)
+              - pattern: rename($OLD, $DEST)
+              - pattern: copy($SRC, $DEST)
+              - pattern: file_put_contents($DEST, ...)
+          - pattern-not: move_uploaded_file($SRC, "...")
+          - pattern-not: rename($OLD, "...")
+          - pattern-not: copy($SRC, "...")
+          - pattern-not: file_put_contents("...", ...)
+          - focus-metavariable: $DEST

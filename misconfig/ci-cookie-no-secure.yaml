@@ -1,0 +1,33 @@
+rules:
+  - id: ci-cookie-no-secure
+    severity: WARNING
+    languages: [php]
+    min-version: 1.71.0
+    message: >-
+      Session/CSRF cookies are set without the Secure flag, allowing the
+      browser to send them over plain HTTP. Set cookie_secure=TRUE (CI3)
+      or $cookieSecure=true (CI4) and serve over HTTPS only.
+    metadata:
+      category: security
+      cwe:
+        - "CWE-614: Sensitive Cookie in HTTPS Session Without 'Secure' Attribute"
+      owasp:
+        - "A02:2021 - Cryptographic Failures"
+      technology:
+        - codeigniter
+        - php
+      confidence: HIGH
+      likelihood: MEDIUM
+      impact: MEDIUM
+      subcategory:
+        - vuln
+      license: Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license
+    pattern-either:
+      # CI2/CI3 config array
+      - pattern: $config['cookie_secure'] = false
+      # CI4 Config\App or Config\Cookie class property
+      - patterns:
+          - pattern-inside: |
+              namespace Config;
+              ...
+          - pattern: $cookieSecure = false

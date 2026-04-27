@@ -1,0 +1,52 @@
+rules:
+  - id: ci-hardcoded-db-creds
+    severity: WARNING
+    languages: [php]
+    min-version: 1.71.0
+    message: >-
+      A non-empty database password is hardcoded in the configuration
+      file. Hardcoded credentials leak via source-control history and
+      cannot be rotated without a code change. Load from environment
+      variables using getenv() or $_ENV instead.
+    metadata:
+      category: security
+      cwe:
+        - "CWE-798: Use of Hard-coded Credentials"
+      owasp:
+        - "A07:2021 - Identification and Authentication Failures"
+      technology:
+        - codeigniter
+        - php
+      confidence: HIGH
+      likelihood: HIGH
+      impact: HIGH
+      subcategory:
+        - vuln
+      license: Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license
+    pattern-either:
+      # CI2/CI3 config array form
+      - patterns:
+          - pattern: $db[$PROFILE]['password'] = "$PASS"
+          # Require at least one non-placeholder character. Rejects
+          # empty strings and deploy-time placeholders like @PASSWORD@,
+          # {{password}}, %DB_PASS%, <PASSWORD>, ${PASS}.
+          - metavariable-regex:
+              metavariable: $PASS
+              regex: ^(?!@.*@$)(?!\{\{.*\}\}$)(?!%.*%$)(?!<.*>$)(?!\$\{.*\}$).+$
+          - pattern-not: $db[$PROFILE]['password'] = ""
+      # CI4 Config\Database class property form
+      - patterns:
+          - pattern-inside: class $C { ... }
+          - pattern: $password = "$PASS"
+          - metavariable-regex:
+              metavariable: $PASS
+              regex: ^(?!@.*@$)(?!\{\{.*\}\}$)(?!%.*%$)(?!<.*>$)(?!\$\{.*\}$).+$
+          - pattern-not: $password = ""
+      # CI4 default group array (inside Config\Database class)
+      - patterns:
+          - pattern-inside: class $C { ... }
+          - pattern: $default = [..., 'password' => "$PASS", ...]
+          - metavariable-regex:
+              metavariable: $PASS
+              regex: ^(?!@.*@$)(?!\{\{.*\}\}$)(?!%.*%$)(?!<.*>$)(?!\$\{.*\}$).+$
+          - pattern-not: $default = [..., 'password' => "", ...]

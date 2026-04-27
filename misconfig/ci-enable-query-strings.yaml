@@ -1,0 +1,35 @@
+rules:
+  - id: ci-enable-query-strings
+    severity: WARNING
+    languages: [php]
+    min-version: 1.71.0
+    message: >-
+      CodeIgniter 3's `enable_query_strings` is set to TRUE in
+      `application/config/config.php`. This bypasses the segment-based
+      routing security model and lets URLs like
+      `?c=admin&m=delete&id=1` reach controllers and methods that the
+      developer may not have intended to expose via this URL form.
+      Modern CI3 applications should leave this set to FALSE and rely
+      on segment-based routes (`/admin/delete/1`) defined in
+      `application/config/routes.php`.
+    metadata:
+      category: security
+      cwe:
+        - "CWE-913: Improper Control of Dynamically-Managed Code Resources"
+      owasp:
+        - "A05:2021 - Security Misconfiguration"
+      technology:
+        - codeigniter
+        - php
+      confidence: HIGH
+      likelihood: LOW
+      impact: MEDIUM
+      subcategory:
+        - vuln
+      license: Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license
+    patterns:
+      - pattern: $config['enable_query_strings'] = true
+      # Suppress when assignment is inside a function body — `$config`
+      # is then a local variable, not the top-level config.php setting
+      - pattern-not-inside: |
+          function $F(...) { ... }

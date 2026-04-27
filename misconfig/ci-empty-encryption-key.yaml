@@ -1,0 +1,26 @@
+rules:
+  - id: ci-empty-encryption-key
+    severity: WARNING
+    languages: [php]
+    min-version: 1.71.0
+    message: >-
+      CodeIgniter encryption_key is empty. This disables session integrity
+      protection, allows cookie tampering, and breaks encrypt()/decrypt().
+      Set a cryptographically random 32-byte key, loaded from environment
+      if possible.
+    metadata:
+      category: security
+      cwe:
+        - "CWE-321: Use of Hard-coded Cryptographic Key"
+      owasp:
+        - "A02:2021 - Cryptographic Failures"
+      technology:
+        - codeigniter
+        - php
+      confidence: HIGH
+      likelihood: HIGH
+      impact: HIGH
+      subcategory:
+        - vuln
+      license: Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license
+    pattern: $config['encryption_key'] = ''

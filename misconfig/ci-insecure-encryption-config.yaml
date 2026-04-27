@@ -1,0 +1,83 @@
+rules:
+  - id: ci-insecure-encryption-config
+    severity: ERROR
+    languages: [php]
+    min-version: 1.71.0
+    message: >-
+      The CodeIgniter Encryption library is configured with a broken
+      cryptographic primitive (DES/3DES/RC2/RC4 cipher, ECB mode, or
+      MD5/SHA1 HMAC), or the deprecated CI3 MCrypt-based library
+      ($this->encrypt) is in use. These primitives are practically
+      attackable: DES brute-force, 3DES/Blowfish-class Sweet32 attack,
+      RC4 biases (RC4 NOMORE), ECB plaintext-block leakage, MD5/SHA1
+      collisions. Switch to AES-128/192/256 with CBC/CTR/GCM mode and
+      SHA-256 or stronger HMAC. CI3's MCrypt-based Encrypt library
+      ($this->encrypt) was removed from PHP 7.3 — use the modern
+      Encryption library ($this->encryption) instead.
+    metadata:
+      category: security
+      cwe:
+        - "CWE-327: Use of a Broken or Risky Cryptographic Algorithm"
+      owasp:
+        - "A02:2021 - Cryptographic Failures"
+      technology:
+        - codeigniter
+        - php
+      confidence: HIGH
+      likelihood: HIGH
+      impact: HIGH
+      subcategory:
+        - vuln
+      functional-categories:
+        - crypto::lang::cryptographic-primitive::codeigniter
+      license: Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license
+    pattern-either:
+      # Weak cipher
+      - patterns:
+          - pattern: $this->encryption->initialize([..., 'cipher' => $V, ...])
+          - metavariable-regex:
+              metavariable: $V
+              regex: ^['"](des|3des|tripledes|rc2|rc4)['"]$
+      # ECB mode
+      - patterns:
+          - pattern: $this->encryption->initialize([..., 'mode' => $V, ...])
+          - metavariable-regex:
+              metavariable: $V
+              regex: ^['"](ecb)['"]$
+      # Weak HMAC digest
+      - patterns:
+          - pattern: $this->encryption->initialize([..., 'hmac_digest' => $V, ...])
+          - metavariable-regex:
+              metavariable: $V
+              regex: ^['"](md5|sha1)['"]$
+      # The Encrypt library wraps PHP mcrypt (removed in PHP 7.3).
+      # Distinct from $this->encryption (the modern library).
+      - pattern: $this->encrypt->encode(...)
+      - pattern: $this->encrypt->decode(...)
+      - pattern: $this->encrypt->sha1(...)
+      - pattern: $this->encrypt->encode_from_legacy(...)
+      - pattern: $this->encrypt->set_cipher(...)
+      - pattern: $this->encrypt->set_mode(...)
+      - patterns:
+          - pattern-either:
+              - pattern: |
+                  class $C extends BaseConfig {
+                    ...
+                    public $cipher = $V;
+                    ...
+                  }
+              - pattern: |
+                  class $C extends BaseConfig {
+                    ...
+                    public string $cipher = $V;
+                    ...
+                  }
+              - pattern: |
+                  class $C extends BaseConfig {
+                    ...
+                    public ?string $cipher = $V;
+                    ...
+                  }
+          - metavariable-regex:
+              metavariable: $V
+              regex: ^['"](AES-\d+-ECB|DES-|3DES-|DES-EDE|DES-EDE3|RC2-|RC4|BF-|CAST5-|IDEA-)

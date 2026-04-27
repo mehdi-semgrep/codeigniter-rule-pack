@@ -1,0 +1,161 @@
+rules:
+  - id: ci-path-traversal
+    severity: ERROR
+    languages: [php]
+    min-version: 1.71.0
+    message: >-
+      User-controlled input flows into a CodeIgniter view or file loader,
+      enabling path traversal. Validate the filename with basename() or
+      $this->security->sanitize_filename(), or restrict to an allowlist of
+      known template names.
+    mode: taint
+    options:
+      taint_assume_safe_booleans: true
+      taint_assume_safe_numbers: true
+    metadata:
+      category: security
+      cwe:
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp:
+        - "A01:2021 - Broken Access Control"
+      technology:
+        - codeigniter
+        - php
+      confidence: HIGH
+      likelihood: HIGH
+      impact: HIGH
+      subcategory:
+        - vuln
+      functional-categories:
+        - web::source::http-params::codeigniter
+        - web::source::url-path-params::codeigniter
+        - file::sink::path-traversal::codeigniter
+      license: Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license
+    pattern-sources:
+      - label: CI_INPUT
+        patterns:
+          - pattern-inside: function $FN(..., \CodeIgniter\HTTP\IncomingRequest $REQ, ...) {...}
+          - pattern: $REQ->$METHOD(...)
+      - label: CI_INPUT
+        patterns:
+          - pattern-inside: function $FN(..., IncomingRequest $REQ, ...) {...}
+          - pattern: $REQ->$METHOD(...)
+      - label: CI_INPUT
+        pattern: service('request')
+      - label: CI_INPUT
+        patterns:
+          - pattern: public function $METHOD(..., $ARG, ...) { ... }
+          - pattern-not: public function $METHOD(..., int $ARG, ...) { ... }
+          - pattern-not: public function $METHOD(..., ?int $ARG, ...) { ... }
+          - pattern-not: public function $METHOD(..., float $ARG, ...) { ... }
+          - pattern-not: public function $METHOD(..., ?float $ARG, ...) { ... }
+          - pattern-not: public function $METHOD(..., bool $ARG, ...) { ... }
+          - pattern-not: public function $METHOD(..., ?bool $ARG, ...) { ... }
+          - pattern-not: public function $METHOD(..., \CodeIgniter\HTTP\IncomingRequest $ARG, ...) { ... }
+          - pattern-not: public function $METHOD(..., IncomingRequest $ARG, ...) { ... }
+          - focus-metavariable: $ARG
+          - pattern-inside: class $C extends \App\Controllers\BaseController { ... }
+      - label: CI_INPUT
+        patterns:
+          - pattern: $this->input
+          - pattern-inside: class $C extends CI_Controller { ... }
+      - label: CI_INPUT
+        patterns:
+          - pattern: $this->uri->segment(...)
+          - pattern-inside: class $C extends CI_Controller { ... }
+      - label: CI_INPUT
+        patterns:
+          - pattern: $this->get(...)
+          - pattern-inside: class $C extends REST_Controller { ... }
+      - label: CI_INPUT
+        patterns:
+          - pattern: $this->post(...)
+          - pattern-inside: class $C extends REST_Controller { ... }
+      - label: CI_INPUT
+        pattern-either:
+          - pattern: $_GET
+          - pattern: $_POST
+          - pattern: $_COOKIE
+          - pattern: $_REQUEST
+          - pattern: $_FILES
+    pattern-propagators:
+      - pattern: $A . $B
+        from: $B
+        to: $A
+      - pattern: sprintf($FMT, ..., $X, ...)
+        from: $X
+        to: $FMT
+    pattern-sanitizers:
+      - pattern: realpath(...)
+      - pattern: basename(...)
+      - pattern: $this->security->sanitize_filename(...)
+      - pattern: \CodeIgniter\Security\Security::sanitizeFilename(...)
+      - pattern: (int)$X
+      - pattern: intval($X)
+      # Hashes neutralize path separators and directory traversal
+      # sequences. Output is alphanumeric only, so they're effective
+      # as path-traversal sanitizers (even though they do NOT prevent
+      # filename-control attacks — see ci-filename-control).
+      - pattern: md5(...)
+      - pattern: sha1(...)
+      - pattern: hash($ALGO, ...)
+      # PHP-managed upload temp paths — the file's tmp_name key is
+      # set by the PHP engine itself, not by the attacker. We match
+      # any `$X['tmp_name']` subscript because application code often
+      # iterates `foreach ($_FILES as $file)` and then accesses
+      # `$file['tmp_name']`; the tmp_name semantics carry through.
+      - pattern: $_FILES[$K]['tmp_name']
+      - pattern: $_FILES[$K]["tmp_name"]
+      - pattern: $X['tmp_name']
+      - pattern: $X["tmp_name"]
+      # CI4 security helper (loaded via `helper('security')`): bare
+      # function call. Distinct from the CI3 $this->security->...
+      # method and the CI4 static Security::sanitizeFilename form.
+      - pattern: sanitize_filename(...)
+      # Filesystem directory-scanning functions. Return values are
+      # filenames actually present on the server's disk, not
+      # attacker-controlled strings. The FN risk is bounded: an
+      # attacker would need existing filesystem write access to
+      # place a file with `../` in its name, which is rare and
+      # generally caught by ci-filename-control in the earlier
+      # upload stage.
+      - pattern: glob(...)
+      - pattern: scandir(...)
+      - pattern: readdir(...)
+      # CI ecosystem custom directory-walker (observed in ecommerce
+      # packs). Same semantics as scandir.
+      - pattern: rreadDir(...)
+    pattern-sinks:
+      - requires: CI_INPUT
+        patterns:
+          - pattern-either:
+              # CI3 view loader
+              - pattern: $this->load->view($P, ...)
+              - pattern: $this->load->file($P, ...)
+              # CI4 view() helper
+              - pattern: view($P, ...)
+              - pattern: view_cell($P, ...)
+              # Raw filesystem reads
+              - pattern: file_get_contents($P)
+              - pattern: fopen($P, ...)
+              - pattern: file($P, ...)
+              - pattern: readfile($P)
+              - pattern: new SplFileObject($P, ...)
+              # Dynamic include / require (path traversal + possible RCE)
+              - pattern: include $P;
+              - pattern: include_once $P;
+              - pattern: require $P;
+              - pattern: require_once $P;
+          - pattern-not: $this->load->view("...", ...)
+          - pattern-not: $this->load->file("...", ...)
+          - pattern-not: view("...", ...)
+          - pattern-not: view_cell("...", ...)
+          - pattern-not: file_get_contents("...")
+          - pattern-not: fopen("...", ...)
+          - pattern-not: file("...", ...)
+          - pattern-not: readfile("...")
+          - pattern-not: new SplFileObject("...", ...)
+          - pattern-not: include "...";
+          - pattern-not: include_once "...";
+          - pattern-not: require "...";
+          - pattern-not: require_once "...";

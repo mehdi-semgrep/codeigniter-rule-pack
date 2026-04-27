@@ -1,0 +1,39 @@
+rules:
+  - id: ci-migration-enabled-prod
+    severity: WARNING
+    languages: [php]
+    min-version: 1.71.0
+    message: >-
+      CodeIgniter 3's `migration_enabled` is set to TRUE in
+      `application/config/migration.php`. When this flag is enabled in
+      production, the migration controller endpoints remain active and
+      an attacker who can reach them can trigger DB schema changes
+      (drop tables, alter columns, downgrade versions). This is
+      especially dangerous if the migration controller has weak or no
+      authentication. Verify your deployment process disables this
+      flag in production — typical guards are: (a) editing the file
+      during deployment, (b) using CI3 environment-specific config
+      files (`application/config/production/migration.php` overrides
+      the default), or (c) gating with `ENVIRONMENT` checks.
+    metadata:
+      category: security
+      cwe:
+        - "CWE-16: Configuration"
+      owasp:
+        - "A05:2021 - Security Misconfiguration"
+      technology:
+        - codeigniter
+        - php
+      confidence: MEDIUM
+      likelihood: LOW
+      impact: HIGH
+      subcategory:
+        - vuln
+      license: Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license
+    patterns:
+      - pattern: $config['migration_enabled'] = true
+      # Suppress when assignment is inside a function body — `$config`
+      # is then a local variable being passed to the migration library,
+      # not the global config.php top-level setting
+      - pattern-not-inside: |
+          function $F(...) { ... }

@@ -1,0 +1,167 @@
+rules:
+  - id: ci-xss-output
+    severity: ERROR
+    languages: [php]
+    min-version: 1.71.0
+    message: >-
+      User-controlled input flows into a CodeIgniter output or template
+      method without HTML encoding, enabling cross-site scripting (XSS).
+      Escape with esc(), htmlspecialchars(), or Twig autoescape before
+      rendering.
+    mode: taint
+    options:
+      taint_assume_safe_booleans: true
+      taint_assume_safe_numbers: true
+    metadata:
+      category: security
+      cwe:
+        - "CWE-79: Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting')"
+      owasp:
+        - "A03:2021 - Injection"
+      technology:
+        - codeigniter
+        - php
+      confidence: HIGH
+      likelihood: HIGH
+      impact: HIGH
+      subcategory:
+        - vuln
+      functional-categories:
+        - web::source::http-params::codeigniter
+        - web::source::http-body::codeigniter
+        - web::source::cookie::codeigniter
+        - web::source::url-path-params::codeigniter
+        - web::sink::html-webpage::codeigniter
+      license: Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license
+    pattern-sources:
+      - label: CI_INPUT
+        patterns:
+          - pattern-inside: function $FN(..., \CodeIgniter\HTTP\IncomingRequest $REQ, ...) {...}
+          - pattern: $REQ->$METHOD(...)
+      - label: CI_INPUT
+        patterns:
+          - pattern-inside: function $FN(..., IncomingRequest $REQ, ...) {...}
+          - pattern: $REQ->$METHOD(...)
+      - label: CI_INPUT
+        pattern: service('request')
+      # CI4 controller route parameters; numeric/bool typed params are excluded.
+      - label: CI_INPUT
+        patterns:
+          - pattern: public function $METHOD(..., $ARG, ...) { ... }
+          - pattern-not: public function $METHOD(..., int $ARG, ...) { ... }
+          - pattern-not: public function $METHOD(..., ?int $ARG, ...) { ... }
+          - pattern-not: public function $METHOD(..., float $ARG, ...) { ... }
+          - pattern-not: public function $METHOD(..., ?float $ARG, ...) { ... }
+          - pattern-not: public function $METHOD(..., bool $ARG, ...) { ... }
+          - pattern-not: public function $METHOD(..., ?bool $ARG, ...) { ... }
+          - pattern-not: public function $METHOD(..., \CodeIgniter\HTTP\IncomingRequest $ARG, ...) { ... }
+          - pattern-not: public function $METHOD(..., IncomingRequest $ARG, ...) { ... }
+          - focus-metavariable: $ARG
+          - pattern-inside: class $C extends \App\Controllers\BaseController { ... }
+      - label: CI_INPUT
+        patterns:
+          - pattern: $this->input
+          - pattern-inside: class $C extends CI_Controller { ... }
+      - label: CI_INPUT
+        patterns:
+          - pattern: $this->uri->segment(...)
+          - pattern-inside: class $C extends CI_Controller { ... }
+      - label: CI_INPUT
+        patterns:
+          - pattern: $this->uri->rsegment(...)
+          - pattern-inside: class $C extends CI_Controller { ... }
+      - label: CI_INPUT
+        patterns:
+          - pattern: $this->get(...)
+          - pattern-inside: class $C extends REST_Controller { ... }
+      - label: CI_INPUT
+        patterns:
+          - pattern: $this->post(...)
+          - pattern-inside: class $C extends REST_Controller { ... }
+      - label: CI_INPUT
+        patterns:
+          - pattern: $this->put(...)
+          - pattern-inside: class $C extends REST_Controller { ... }
+      - label: CI_INPUT
+        patterns:
+          - pattern: $this->delete(...)
+          - pattern-inside: class $C extends REST_Controller { ... }
+      - label: CI_INPUT
+        pattern-either:
+          - pattern: $_GET
+          - pattern: $_POST
+          - pattern: $_COOKIE
+          - pattern: $_REQUEST
+          - pattern: $_FILES
+      - label: CI_INPUT
+        patterns:
+          - pattern: $_SERVER['$KEY']
+          - metavariable-regex:
+              metavariable: $KEY
+              regex: ^(HTTP_REFERER|HTTP_USER_AGENT|HTTP_HOST|HTTP_X_FORWARDED_FOR|HTTP_X_FORWARDED_HOST|HTTP_X_REAL_IP|HTTP_FORWARDED|HTTP_X_ORIGINAL_URL|HTTP_X_REWRITE_URL|HTTP_CLIENT_IP|HTTP_ACCEPT_LANGUAGE|HTTP_COOKIE|QUERY_STRING|PATH_INFO|ORIG_PATH_INFO|REQUEST_URI|REQUEST_METHOD|PHP_AUTH_USER|PHP_AUTH_PW)$
+    pattern-propagators:
+      - pattern: $A . $B
+        from: $B
+        to: $A
+      - pattern: sprintf($FMT, ..., $X, ...)
+        from: $X
+        to: $FMT
+      - pattern: $ARR[$K] = $TAINTED
+        from: $TAINTED
+        to: $ARR
+    pattern-sanitizers:
+      - pattern: htmlspecialchars(...)
+      - pattern: htmlentities(...)
+      - pattern: esc(...)
+      - pattern: h(...)
+      # JSON / URL encoding neutralize HTML-significant characters
+      - pattern: json_encode(...)
+      - pattern: http_build_query(...)
+      - pattern: urlencode(...)
+      - pattern: rawurlencode(...)
+      # Output transformations that produce non-HTML-significant characters
+      - pattern: date(...)
+      - pattern: intval($X)
+      - pattern: floatval($X)
+      # Hash functions: hex/numeric output cannot contain HTML-significant characters
+      - pattern: md5(...)
+      - pattern: sha1(...)
+      - pattern: hash(...)
+      - pattern: crc32(...)
+      # Whitelist-validated locale code (CI4 Config\App::supportedLocales)
+      - pattern: service('request')->getLocale()
+    pattern-sinks:
+      - requires: CI_INPUT
+        patterns:
+          - pattern-either:
+              # CI3 output library
+              - pattern: $this->output->set_output($DATA)
+              - pattern: $CHAIN->set_output($DATA)
+              - pattern: $this->output->append_output($DATA)
+              # CI4 response
+              - pattern: $this->response->setBody($DATA)
+              - pattern: $RESP->setBody($DATA)
+              # CI4 view() helper and view_cell()
+              - pattern: view($TMPL, $DATA, ...)
+              - pattern: view_cell($TMPL, $DATA, ...)
+              # CI4 return view from controller
+              - pattern: return view($TMPL, $DATA, ...);
+              # Raw PHP output
+              - pattern: echo $DATA;
+              - pattern: print $DATA;
+              - pattern: print($DATA);
+              # Templating engines — Twig/Smarty autoescape by default, but
+              # passing tainted data is still a warning signal.
+              - pattern: $TWIG->render($TMPL, $DATA)
+              - pattern: $SMARTY->assign($K, $DATA)
+          - pattern-not: $this->output->set_output("...")
+          - pattern-not: $this->output->append_output("...")
+          - pattern-not: $CHAIN->set_output("...")
+          - pattern-not: $this->response->setBody("...")
+          - pattern-not: $RESP->setBody("...")
+          - pattern-not: view($TMPL, "...", ...)
+          - pattern-not: view("...")
+          - pattern-not: view_cell("...", ...)
+          - pattern-not: echo "...";
+          - pattern-not: print "...";
+          - pattern-not: print("...");

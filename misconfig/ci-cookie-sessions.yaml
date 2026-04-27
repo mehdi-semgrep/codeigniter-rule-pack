@@ -1,0 +1,29 @@
+rules:
+  - id: ci-cookie-sessions
+    severity: WARNING
+    languages: [php]
+    min-version: 1.71.0
+    message: >-
+      CodeIgniter is configured to use cookie-based sessions. Session data
+      is stored client-side where an attacker can tamper with it and
+      serialised payloads become a deserialisation vector. Use
+      sess_use_database=TRUE or sess_driver='files'/'redis'/'database'.
+    metadata:
+      category: security
+      cwe:
+        - "CWE-565: Reliance on Cookies without Validation and Integrity Checking"
+      owasp:
+        - "A04:2021 - Insecure Design"
+      technology:
+        - codeigniter
+        - php
+      confidence: HIGH
+      likelihood: MEDIUM
+      impact: MEDIUM
+      subcategory:
+        - vuln
+      license: Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license
+    pattern-either:
+      - pattern: $config['sess_use_database'] = false
+      - pattern: $config['sess_driver'] = 'cookie'
+      - pattern: $config['sess_driver'] = "cookie"
