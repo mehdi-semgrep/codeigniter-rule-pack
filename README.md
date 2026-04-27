@@ -49,3 +49,14 @@ semgrep scan --pro --config php/codeigniter_production <target>
 ```
 
 The `--pro` flag is recommended: precision figures in this README are measured under Pro. Without `--pro`, taint-mode rules under-fire on intra-file cross-function flows.
+
+## Publishing to your Semgrep org
+
+```bash
+gh repo clone mehdi-semgrep/codeigniter-rule-pack
+cd codeigniter-rule-pack
+semgrep login
+semgrep publish --visibility unlisted .
+```
+
+After publishing, the rules are reachable in any scan as `--config <your-org-slug>.ci-<rule-name>` or as a pack via `--config p/<your-org-slug>`.
