@@ -1,4 +1,4 @@
-# CodeIgniter security pack — production rules
+# CodeIgniter security pack 
 
 18 high-precision Semgrep rules for CodeIgniter (CI2/CI3/CI4) PHP applications. Validated against a 30-repo benchmark with 3-model adversarial triage under the Semgrep Pro engine. Overall pack precision: **94.3%** (300 TP / 18 FP, n=318); per-rule precision range 85.7% – 100%.
 
